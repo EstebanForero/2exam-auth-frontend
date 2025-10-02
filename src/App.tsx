@@ -1,44 +1,55 @@
-// src/App.tsx (updated with OAuth flow + token display)
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { useAuth } from '@zitadel/react'
 
-function App() {
-  const { isAuthenticated, login, logout, getToken, refreshToken } = useAuth()
+function Callback() {
+  const { handleCallback } = useAuth()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.search) {
+      handleCallback()  // Exchange code for tokens
+    }
+  }, [handleCallback, location.search])
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center p-8">
+        <h1 className="text-2xl font-bold mb-4">Logging you in...</h1>
+        <p>Handling callback from Zitadel.</p>
+      </div>
+    </div>
+  )
+}
+
+function MainApp() {
+  const { isAuthenticated, login, logout, user } = useAuth()
   const [accessToken, setAccessToken] = useState<string>('')
-  const [refreshToken, setRefreshToken] = useState<string>('')
+  const [refreshTokenValue, setRefreshTokenValue] = useState<string>('')  // Renamed to avoid conflict
   const [apiResponse, setApiResponse] = useState<any>(null)
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = () => {
-    login({
-      // Scope with project audience + user scopes (from your setup)
-      scope: 'openid urn:zitadel:iam:org:project:id:340437961126445059:aud user.read user.write',
-    })
-  }
-
-  const fetchToken = async () => {
-    if (isAuthenticated) {
-      setLoading(true)
-      try {
-        const token = await getToken()
-        setAccessToken(token.access_token || '')
-        setRefreshToken(token.refresh_token || '')  // If available
-        console.log('Tokens fetched:', { accessToken: token.access_token, refreshToken: token.refresh_token })
-      } catch (err) {
-        console.error('Token fetch error:', err)
-      }
-      setLoading(false)
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      // Auto-fetch tokens after auth
+      setAccessToken(user.access_token || '')
+      setRefreshTokenValue(user.refresh_token || '')
     }
+  }, [isAuthenticated, user])
+
+  const handleLogin = () => {
+    login()
   }
 
   const handleRefresh = async () => {
+    if (!user || !user.refresh_token) return
     setLoading(true)
     try {
-      const newToken = await refreshToken()
-      setAccessToken(newToken.access_token || '')
-      setRefreshToken(newToken.refresh_token || '')
-      console.log('Refreshed tokens:', newToken)
-      // Test old token would fail now (invalidated)
+      // Refresh via signinSilent (oidc-client-ts)
+      const refreshedUser = await user.userManager?.signinSilent()
+      setAccessToken(refreshedUser?.access_token || '')
+      setRefreshTokenValue(refreshedUser?.refresh_token || '')
+      console.log('Refreshed tokens:', refreshedUser)
     } catch (err) {
       console.error('Refresh error:', err)
     }
@@ -49,7 +60,7 @@ function App() {
     if (!accessToken) return
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:3000/user-protected', {  // Your secure API
+      const response = await fetch('http://localhost:3000/user-protected', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -60,7 +71,7 @@ function App() {
       console.log('API response:', data)
     } catch (err) {
       console.error('API test error:', err)
-      setApiResponse({ error: 'API call failed' })
+      setApiResponse({ error: 'API call failed (check secure API running?)' })
     }
     setLoading(false)
   }
@@ -87,56 +98,53 @@ function App() {
         <h1 className="text-3xl font-bold text-center text-gray-900">Zitadel OAuth Frontend</h1>
 
         <div className="bg-white shadow-md rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4">Authenticated! Fetch Tokens</h2>
-          <button
-            onClick={fetchToken}
-            disabled={loading}
-            className="mb-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : 'Get Access Token'}
-          </button>
+          <h2 className="text-xl font-semibold mb-4">Authenticated! Tokens Loaded</h2>
+          <div className="mt-4 space-x-2">
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+            >
+              {loading ? 'Refreshing...' : 'Refresh Token'}
+            </button>
+            <button
+              onClick={testApi}
+              disabled={loading}
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
+            >
+              Test Secure API (/user-protected)
+            </button>
+            <button
+              onClick={logout}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         {accessToken && (
           <div className="bg-white shadow-md rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">Tokens (Copy for Postman)</h2>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Access Token</label>
-              <textarea
-                value={accessToken}
-                readOnly
-                className="w-full p-2 border border-gray-300 rounded-md resize-none"
-                rows={3}
-              />
-              <label className="block text-sm font-medium text-gray-700">Refresh Token</label>
-              <textarea
-                value={refreshToken}
-                readOnly
-                className="w-full p-2 border border-gray-300 rounded-md resize-none"
-                rows={2}
-              />
-            </div>
-            <div className="mt-4 space-x-2">
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-              >
-                {loading ? 'Refreshing...' : 'Refresh Token'}
-              </button>
-              <button
-                onClick={testApi}
-                disabled={loading}
-                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
-              >
-                Test Secure API (/user-protected)
-              </button>
-              <button
-                onClick={logout}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Logout
-              </button>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Access Token</label>
+                <textarea
+                  value={accessToken}
+                  readOnly
+                  className="w-full p-2 border border-gray-300 rounded-md resize-none font-mono text-xs"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Refresh Token</label>
+                <textarea
+                  value={refreshTokenValue}
+                  readOnly
+                  className="w-full p-2 border border-gray-300 rounded-md resize-none font-mono text-xs"
+                  rows={2}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -144,13 +152,22 @@ function App() {
         {apiResponse && (
           <div className="bg-white shadow-md rounded-lg p-6">
             <h2 className="text-xl font-semibold mb-4">Secure API Response</h2>
-            <pre className="bg-gray-100 p-4 rounded-md overflow-auto text-sm">
+            <pre className="bg-gray-100 p-4 rounded-md overflow-auto text-sm font-mono">
               {JSON.stringify(apiResponse, null, 2)}
             </pre>
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<MainApp />} />
+      <Route path="/callback" element={<Callback />} />
+    </Routes>
   )
 }
 
