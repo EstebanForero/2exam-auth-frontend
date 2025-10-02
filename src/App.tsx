@@ -171,8 +171,10 @@ function App() {
   const config: ZitadelConfig = {
     authority: 'https://auth.sabanus.site',
     client_id: '340451216704208899',
-    redirect_uri: 'http://localhost:5173/callback',
-    post_logout_redirect_uri: 'http://localhost:5173',
+    redirect_uri: 'https://frontend-auth.sabanus.site/callback',
+    post_logout_redirect_uri: 'https://frontend-auth.sabanus.site',
+    // redirect_uri: 'http://localhost:5173/callback',
+    // post_logout_redirect_uri: 'http://localhost:5173',
     response_type: 'code',
     scope: 'openid profile email offline_access',
   };
