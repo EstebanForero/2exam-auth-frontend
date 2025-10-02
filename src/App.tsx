@@ -1,96 +1,92 @@
-import { useState, useEffect } from 'react'
-import { Routes, Route, useLocation } from 'react-router-dom'
-import { useAuth } from '@zitadel/react'
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { createZitadelAuth, type ZitadelConfig } from '@zitadel/react';
 
-function Callback() {
-  const { handleCallback } = useAuth()
-  const location = useLocation()
+function Callback({ authenticated, setAuth, handleLogout, userManager }: {
+  authenticated: boolean | null;
+  setAuth: (auth: boolean) => void;
+  handleLogout: () => void;
+  userManager: any;
+}) {
+  const location = useLocation();
 
   useEffect(() => {
     if (location.search) {
-      handleCallback()  // Exchange code for tokens
+      userManager.signinRedirectCallback().then((user: any) => {
+        if (user) {
+          setAuth(true);
+          window.location.href = '/';
+        }
+      }).catch((err: any) => {
+        console.error('Callback error:', err);
+      });
     }
-  }, [handleCallback, location.search])
+  }, [userManager, setAuth, location.search]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="text-center p-8">
+      <div className="text-center p-8 bg-white rounded-lg shadow-md">
         <h1 className="text-2xl font-bold mb-4">Logging you in...</h1>
         <p>Handling callback from Zitadel.</p>
       </div>
     </div>
-  )
+  );
 }
 
-function MainApp() {
-  const { isAuthenticated, login, logout, user } = useAuth()
-  const [accessToken, setAccessToken] = useState<string>('')
-  const [refreshTokenValue, setRefreshTokenValue] = useState<string>('')  // Renamed to avoid conflict
-  const [apiResponse, setApiResponse] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      // Auto-fetch tokens after auth
-      setAccessToken(user.access_token || '')
-      setRefreshTokenValue(user.refresh_token || '')
-    }
-  }, [isAuthenticated, user])
-
-  const handleLogin = () => {
-    login()
+function Login({ authenticated, handleLogin }: {
+  authenticated: boolean | null;
+  handleLogin: () => void;
+}) {
+  if (authenticated === true) {
+    return null;
   }
 
-  const handleRefresh = async () => {
-    if (!user || !user.refresh_token) return
-    setLoading(true)
-    try {
-      // Refresh via signinSilent (oidc-client-ts)
-      const refreshedUser = await user.userManager?.signinSilent()
-      setAccessToken(refreshedUser?.access_token || '')
-      setRefreshTokenValue(refreshedUser?.refresh_token || '')
-      console.log('Refreshed tokens:', refreshedUser)
-    } catch (err) {
-      console.error('Refresh error:', err)
-    }
-    setLoading(false)
-  }
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
+        <h1 className="text-3xl font-bold text-center text-gray-900">Zitadel OAuth Frontend</h1>
+        <button
+          onClick={handleLogin}
+          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Login with Zitadel
+        </button>
+      </div>
+    </div>
+  );
+}
 
-  const testApi = async () => {
-    if (!accessToken) return
-    setLoading(true)
+function TokenDisplay({ user, handleRefresh, testApi, handleLogout }: {
+  user: any;
+  handleRefresh: () => void;
+  testApi: () => void;
+  handleLogout: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [apiResponse, setApiResponse] = useState<any>(null);
+
+  const accessToken = user?.access_token || '';
+  const refreshTokenValue = user?.refresh_token || '';
+
+  const handleTestApi = async () => {
+    if (!accessToken) return;
+    setLoading(true);
     try {
       const response = await fetch('http://localhost:3000/user-protected', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
-      })
-      const data = await response.json()
-      setApiResponse(data)
-      console.log('API response:', data)
+      });
+      const data = await response.json();
+      setApiResponse(data);
+      console.log('API response:', data);
     } catch (err) {
-      console.error('API test error:', err)
-      setApiResponse({ error: 'API call failed (check secure API running?)' })
+      console.error('API test error:', err);
+      setApiResponse({ error: 'API call failed (check secure API running?)' });
     }
-    setLoading(false)
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
-          <h1 className="text-3xl font-bold text-center text-gray-900">Zitadel OAuth Frontend</h1>
-          <button
-            onClick={handleLogin}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            Login with Zitadel
-          </button>
-        </div>
-      </div>
-    )
-  }
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -108,14 +104,14 @@ function MainApp() {
               {loading ? 'Refreshing...' : 'Refresh Token'}
             </button>
             <button
-              onClick={testApi}
+              onClick={handleTestApi}
               disabled={loading}
               className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50"
             >
               Test Secure API (/user-protected)
             </button>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
             >
               Logout
@@ -159,16 +155,111 @@ function MainApp() {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function App() {
+  // const config: ZitadelConfig = {
+  //   authority: 'https://auth.sabanus.site',
+  //   client_id: '34045167040889',  // From your OIDC app
+  //   redirect_uri: 'http://localhost:5173/callback',
+  //   post_logout_redirect_uri: 'http://localhost:5173',
+  //   response_type: 'code',
+  //   scope: 'openid urn:zitadel:iam:org:project:id:340437961126445059:aud user.read user.write',
+  // };
+
+  const config: ZitadelConfig = {
+    authority: 'https://auth.sabanus.site',
+    client_id: '340451216704208899',
+    redirect_uri: 'http://localhost:5173/callback',
+    post_logout_redirect_uri: 'http://localhost:5173',
+    response_type: 'code',
+    scope: 'openid profile email offline_access',
+  };
+
+
+  const zitadel = createZitadelAuth(config);
+
+  function login() {
+    zitadel.authorize();
+  }
+
+  function signout() {
+    zitadel.signout();
+  }
+
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    zitadel.userManager.getUser().then((userData: any) => {
+      if (userData) {
+        setAuthenticated(true);
+        setUser(userData);
+      } else {
+        setAuthenticated(false);
+      }
+    });
+  }, [zitadel]);
+
+  const handleRefresh = async () => {
+    try {
+      const refreshedUser = await zitadel.userManager.signinSilent();
+      setUser(refreshedUser);
+      console.log('Refreshed tokens:', refreshedUser);
+    } catch (err) {
+      console.error('Refresh error:', err);
+    }
+  };
+
+  const handleTestApi = async () => {
+    if (!user?.access_token) return;
+    try {
+      const response = await fetch('http://localhost:3000/user-protected', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${user.access_token}`,
+        },
+      });
+      const data = await response.json();
+      console.log('API response:', data);
+    } catch (err) {
+      console.error('API test error:', err);
+    }
+  };
+
   return (
-    <Routes>
-      <Route path="/" element={<MainApp />} />
-      <Route path="/callback" element={<Callback />} />
-    </Routes>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path='/'
+          element={
+            authenticated ? (
+              <TokenDisplay
+                user={user}
+                handleRefresh={handleRefresh}
+                testApi={handleTestApi}
+                handleLogout={signout}
+              />
+            ) : (
+              <Login authenticated={authenticated} handleLogin={login} />
+            )
+          }
+        />
+        <Route
+          path='/callback'
+          element={
+            <Callback
+              authenticated={authenticated}
+              setAuth={setAuthenticated}
+              handleLogout={signout}
+              userManager={zitadel.userManager}
+            />
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
