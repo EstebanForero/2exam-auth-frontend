@@ -217,7 +217,7 @@ function App() {
   const handleTestApi = async () => {
     if (!user?.access_token) return;
     try {
-      const response = await fetch('http://localhost:3000/user-protected', {
+      const response = await fetch('http://secure-api.sabanus.site/user-protected', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${user.access_token}`,
