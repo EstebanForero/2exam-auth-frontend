@@ -72,7 +72,7 @@ function TokenDisplay({ user, handleRefresh, testApi, handleLogout }: {
     if (!accessToken) return;
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3000/user-protected', {
+      const response = await fetch('http://secure-api.sabanus.site/user-protected', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
