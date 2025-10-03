@@ -19,6 +19,9 @@ The app authenticates users through **ZITADEL**, retrieves **access** and **refr
 
 ## Architecture Flow
 
+<img width="1542" height="859" alt="image" src="https://github.com/user-attachments/assets/b0cb4515-0007-45a0-af2c-69ab5142237d" />
+
+
 The system involves three components:
 
 1. **User (Browser)**
